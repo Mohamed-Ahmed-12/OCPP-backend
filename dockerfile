@@ -20,5 +20,7 @@ EXPOSE 8000
 # CMD ["sh", "-c", "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"]
 
 # Run migrations and start Daphne server
-CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "ElectricalVehicleCharges.asgi:application"]
+# CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "ElectricalVehicleCharges.asgi:application"]
+
+CMD sh -c "python manage.py migrate && daphne -b 0.0.0.0 -p 8000 ElectricalVehicleCharges.asgi:application & uvicorn api.views:app --host 0.0.0.0 --port 9000 --reload"
 

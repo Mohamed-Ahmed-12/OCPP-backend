@@ -25,9 +25,24 @@ services:
       - .:/ElectricalVehicleCharges
     ports:
       - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      - DATABASE_URL=postgresql://admin:admin123@db:5432/evcharges
+      - DEBUG=True
+
+  fastapi:
+    build: .
+    container_name: evcharges_fastapi
+    restart: always
+    command: uvicorn api.views:app --host 0.0.0.0 --port 9000 --reload
+    volumes:
+      - .:/ElectricalVehicleCharges
+    ports:
       - "9000:9000"
     depends_on:
       - db
+      - web
     environment:
       - DATABASE_URL=postgresql://admin:admin123@db:5432/evcharges
       - DEBUG=True

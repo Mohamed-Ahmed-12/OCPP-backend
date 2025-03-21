@@ -11,21 +11,21 @@ logger = logging.getLogger(__name__)
 class OCPPConsumer(AsyncWebsocketConsumer , cp):
     """OCPP Central System Management Server (CSMS)"""
     async def connect(self):
+        """ Handle new Charge Point WebSocket connection """
         self.charger_id = self.scope["url_route"]["kwargs"]["charger_id"]
         # Explicitly initialize ChargePoint (cp) properly
         cp.__init__(self, self.charger_id, self )
-        
         await self.accept()
-        print(f"🔌 Charger {self.charger_id} connected")
-        await self.send(text_data=json.dumps({"message": f"Connected to charger {self.charger_id}"}))
+        logger.info(f"🔌 Charger {self.charger_id} connected")
     
     async def receive(self, text_data):
         """Handles incoming OCPP messages."""
-        logger.info(f'Data {text_data} with type {type(text_data)}')
+        logger.info(f'Data {text_data}')
         try:
             response = await self.route_message(text_data)
             if response:
                 await self.send(json.dumps(response))  # Convert response to JSON before sending
+                # await self.send(str(response))  # Ensure response is in the correct format
         except Exception as e:
             logger.error(f"❌ Error processing message from {self.charger_id}: {e}")
             await self.send(json.dumps({"error": "Invalid request"}))
@@ -36,8 +36,9 @@ class OCPPConsumer(AsyncWebsocketConsumer , cp):
     @on("BootNotification")
     async def on_boot_notification(self, charge_point_model, **kwargs):
         print(f"🚀 Charger {self.charger_id} sent BootNotification: {charge_point_model}")
+        # interval in seconds
         return call_result.BootNotification(
-            status="Accepted", current_time=datetime.now(timezone.utc).isoformat(), interval=10
+            status="Accepted", current_time=datetime.now(timezone.utc).isoformat(), interval=60
         )
         
     @on("Authorize")
@@ -67,3 +68,10 @@ class OCPPConsumer(AsyncWebsocketConsumer , cp):
             id_tag_info={"status":"Accepted"}
         )
         
+    @on('Heartbeat')
+    async def on_heartbeat(self, **kwargs):
+        """ Handle 'Heartbeat' request from Charge Point """
+        print(f"⏱ Charger {self.charger_id} sent Heartbeat")
+        return call_result.Heartbeat(
+            current_time=datetime.now(timezone.utc).isoformat()
+        )

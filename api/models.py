@@ -22,11 +22,9 @@ class ChargePoint(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"ChargePoint {self.charge_point_id} ({self.status})"
+        return f"ChargePoint {self.id} ({self.status})"
 
 
-
-# status (e.g., completed, in-progress, failed)
 class Transaction(models.Model):
     """Tracks ongoing and completed charging sessions"""
     charge_point_id = models.ForeignKey(ChargePoint, on_delete=models.CASCADE)
