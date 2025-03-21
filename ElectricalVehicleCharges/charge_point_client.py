@@ -58,18 +58,8 @@ class ChargePointClient(cp):
             print(f"⏱ Heartbeat Response: {response}")
             await asyncio.sleep(60)
     
-    @on("BootNotification")
-    async def on_boot_notification(self, charge_point_model, charge_point_vendor, **kwargs):
-        """ CSMS receives BootNotification request and responds """
-        print(f"🔌 BootNotification received from {charge_point_model}")
-        
-        return call_result.BootNotificationPayload(
-            current_time=datetime.now(timezone.utc).isoformat(),
-            interval=60,  # Tell CP to send heartbeat every 60s
-            status="Accepted"
-        )
 async def connect_to_server():
-    uri = "ws://localhost:8000/ws/evcharger/585/"  # Replace with your OCPP server URL
+    uri = "ws://localhost:8000/ws/evcharger/585/"  
 
     try:
         async with websockets.connect(uri) as ws:
@@ -87,7 +77,7 @@ async def connect_to_server():
 
             # ✅ Step 3: Authorize the User
             await asyncio.sleep(2)  # Small delay before authorization
-            await charge_point.send_authorize("123456")  
+            await charge_point.send_authorize("123456")
 
             # ✅ Step 4: Start Charging Transaction
             await asyncio.sleep(2)  # Ensure authorization is completed
