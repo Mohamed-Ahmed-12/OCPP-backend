@@ -77,7 +77,7 @@ class Transaction(models.Model):
         ('failed', 'Failed'),
         ('completed', 'Completed'),
         ('canceled', 'Canceled'),
-    ], default="active")
+    ], default="stopped")
 
     def __str__(self):
         return f"Transaction {self.transaction_id} - {self.status}"

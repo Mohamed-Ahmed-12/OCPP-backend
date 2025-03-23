@@ -1,3 +1,6 @@
+# docker cp charge_point.py evcharges_backend:/usr/local/lib/python3.10/site-packages/ocpp/charge_point.py
+# this command will copy modified file to an ocpp lib
+# the modification in route_message() to return response 
 import asyncio
 import inspect
 import logging
@@ -250,36 +253,10 @@ class ChargePoint:
 
     async def route_message(self, raw_msg):
         """
-        Process and route incoming OCPP messages.
-        """
-        try:
-            msg = unpack(raw_msg)
-        except OCPPError as e:
-            self.logger.exception(f"Unable to parse message: {e}")
-            return None  # Explicitly return None on failure
-
-        response = None  # Initialize response variable
-
-        if msg.message_type_id == MessageType.Call:
-            try:
-                response = await self._handle_call(msg)  # Capture response
-            except OCPPError as error:
-                self.logger.exception(f"Error while handling request: {msg}")
-                response = msg.create_call_error(error).to_json()
-                await self._send(response)
-
-        elif msg.message_type_id in [MessageType.CallResult, MessageType.CallError]:
-            self._response_queue.put_nowait(msg)
-            response = msg  # Return the response message
-
-        self.logger.info(f"📤 route_message is returning: {response}")
-        return response  # Ensure response is always returned
-
-        """
         Route a message received from a CP.
 
-        If the message is a of type Call the corresponding hooks are executed.
-        If the message is of type CallResult or CallError the message is passed
+        If the message is a of type Call, the corresponding hooks are executed.
+        If the message is of type CallResult or CallError, the message is passed
         to the call() function via the response_queue.
         """
         try:
@@ -291,18 +268,21 @@ class ChargePoint:
                 raw_msg,
                 e,
             )
-            return
+            return {"error": "Invalid OCPP message"}
 
         if msg.message_type_id == MessageType.Call:
             try:
-                await self._handle_call(msg)
+                response = await self._handle_call(msg)
+                return response  # Returning response instead of just sending it
             except OCPPError as error:
                 self.logger.exception("Error while handling request '%s'", msg)
                 response = msg.create_call_error(error).to_json()
                 await self._send(response)
+                return response  # Return response for logging/debugging
 
         elif msg.message_type_id in [MessageType.CallResult, MessageType.CallError]:
             self._response_queue.put_nowait(msg)
+            return {"status": "Response queued"}
 
     async def _handle_call(self, msg):
         """

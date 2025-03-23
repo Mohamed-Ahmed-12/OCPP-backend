@@ -1,3 +1,4 @@
+from dataclasses import asdict
 import api.django_setup # Load Django settings before importing models
 import json
 import logging
@@ -5,10 +6,10 @@ from datetime import datetime, timezone
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from ocpp.routing import on
-from ocpp.v16 import call_result
+from ocpp.v16 import call_result , call
 from ocpp.v16 import ChargePoint as cp
 from ocpp.v16.enums import RegistrationStatus
-
+from ocpp.messages import CallResult
 from api.models import Messages , ChargePoint , Connector , Transaction
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,8 @@ class OCPPConsumer(AsyncWebsocketConsumer , cp):
         # Explicitly initialize ChargePoint (cp) properly
         cp.__init__(self, self.charger_id, self )
         await self.accept()
+        await self.channel_layer.group_add(f"charger_{self.charger_id}", self.channel_name)
+        logger.info(f"🔌 Added {self.charger_id} to WebSocket group: charger_{self.charger_id}")
         logger.info(f"🔌 Charger {self.charger_id} connected")
     
     async def receive(self, text_data):
@@ -45,24 +48,63 @@ class OCPPConsumer(AsyncWebsocketConsumer , cp):
             response = await self.route_message(text_data)
             logger.info(f'{response}')
             if response is not None:
-                if hasattr(response, "to_json"):
+                if isinstance(response, CallResult):
+                    response_data = response.to_json()  # ✅ Correct way to serialize CallResult
+                elif hasattr(response, "to_json"):
                     response_data = response.to_json()
                 elif isinstance(response, dict):
                     response_data = json.dumps(response)
                 else:
-                    response_data = str(response)
+                    response_data = json.dumps(response.__dict__)  # Convert object attributes to JSON
 
-                # save the response from server
-                logger.info(f'response_data {response_data} {type(response_data)}')
-                await self.save_message(charge_point=self.charge_point,  message_type = message_type ,  payload = response_data)
-                await self.send(json.dumps(response))  # Convert response to JSON before sending
+                # Logging for debugging
+                logger.info(f"Serialized response: {response_data}")
+
+                # Save response to the database
+                await self.save_message(charge_point=self.charge_point,  message_type=message_type, payload=response_data)
+                
+                # Send response back to client
+                await self.send(response_data)  # ✅ Already in JSON format
         except Exception as e:
             logger.error(f"❌ Error processing message from {self.charger_id}: {e}", exc_info=True)
             await self.send(json.dumps({"error": "Invalid request"}))
 
     async def disconnect(self, close_code):
-        print(f"🚫 Charger {self.charger_id} disconnected")
+        await self.channel_layer.group_discard(f"charger_{self.charger_id}", self.channel_name)
+        logger.info(f"🚫 Charger {self.charger_id} disconnected")
+    
+    async def remote_start(self, event):
+        """Handle RemoteStartTransaction request from FastAPI """
+        logger.info(f"📩 Received Remote Start request: {event}")
 
+        try:
+            request_data = json.loads(event["request"])
+            request = call.RemoteStartTransaction(**request_data)
+
+            # Send the OCPP command to the charge point
+            response = await self.call(request)
+
+            logger.info(f"✅ Remote Start Response from CP: {response}")
+
+            # Send response back to FastAPI
+            return response
+        except Exception as e:
+            logger.error(f"❌ Error in remote_start: {e}")
+            
+    async def remote_stop(self,event):
+        """Handle RemoteStopTransaction request from FastAPI """
+        logger.info(f"📩 Received Remote Stop request: {event}")
+        try:
+            request_data = json.loads(event["request"])
+            request = call.RemoteStopTransaction(**request_data)
+            # Send the OCPP command to the charge point
+            response = await self.call(request)
+            logger.info(f"✅ Remote Stop Response from CP: {response}")
+            # Send response back to FastAPI
+            return response
+        except Exception as e:
+            logger.error(f"❌ Error in remote_stop: {e}")
+            
     @on("BootNotification")
     async def on_boot_notification(self, charge_point_model, **kwargs):
         try:
@@ -122,4 +164,3 @@ class OCPPConsumer(AsyncWebsocketConsumer , cp):
             message_type=message_type,
             payload=payload
         )
-
