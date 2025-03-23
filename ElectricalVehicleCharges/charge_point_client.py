@@ -59,7 +59,7 @@ class ChargePointClient(cp):
             await asyncio.sleep(60)
     
 async def connect_to_server():
-    uri = "ws://localhost:8000/ws/evcharger/585/"  
+    uri = "ws://localhost:8000/ws/evcharger/cfcf351e-47ed-4e9a-93b1-62d2ce26d550/"  
 
     try:
         async with websockets.connect(uri) as ws:
